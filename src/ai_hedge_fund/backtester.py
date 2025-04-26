@@ -10,19 +10,19 @@ from colorama import Fore, Style, init
 import numpy as np
 import itertools
 
-from llm.models import LLM_ORDER, OLLAMA_LLM_ORDER, get_model_info, ModelProvider
-from utils.analysts import ANALYST_ORDER
-from main import run_hedge_fund
-from tools.api import (
+from .llm.models import LLM_ORDER, OLLAMA_LLM_ORDER, get_model_info, ModelProvider
+from .utils.analysts import ANALYST_ORDER
+from .__main__ import run_hedge_fund
+from .tools.api import (
     get_company_news,
     get_price_data,
     get_prices,
     get_financial_metrics,
     get_insider_trades,
 )
-from utils.display import print_backtest_results, format_backtest_row
+from .utils.display import print_backtest_results, format_backtest_row
 from typing_extensions import Callable
-from utils.ollama import ensure_ollama_and_model
+from .utils.ollama import ensure_ollama_and_model
 
 init(autoreset=True)
 

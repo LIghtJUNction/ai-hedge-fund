@@ -3,8 +3,8 @@ import os
 import pandas as pd
 import requests
 
-from data.cache import get_cache
-from data.models import (
+from ..data.cache import get_cache
+from ..data.models import (
     CompanyNews,
     CompanyNewsResponse,
     FinancialMetrics,

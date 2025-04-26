@@ -1,23 +1,21 @@
 import sys
-
+import click
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 from colorama import Fore, Style, init
 import questionary
-from agents.portfolio_manager import portfolio_management_agent
-from agents.risk_manager import risk_management_agent
-from graph.state import AgentState
-from utils.display import print_trading_output
-from utils.analysts import ANALYST_ORDER, get_analyst_nodes
-from utils.progress import progress
-from llm.models import LLM_ORDER, OLLAMA_LLM_ORDER, get_model_info, ModelProvider
-from utils.ollama import ensure_ollama_and_model
-
-import argparse
+from .agents.portfolio_manager import portfolio_management_agent
+from .agents.risk_manager import risk_management_agent
+from .graph.state import AgentState
+from .utils.display import print_trading_output
+from .utils.analysts import ANALYST_ORDER, get_analyst_nodes
+from .utils.progress import progress
+from .llm.models import LLM_ORDER, OLLAMA_LLM_ORDER, get_model_info, ModelProvider
+from .utils.ollama import ensure_ollama_and_model
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from utils.visualize import save_graph_as_png
+from .utils.visualize import save_graph_as_png
 import json
 
 # Load environment variables from .env file
@@ -131,27 +129,18 @@ def create_workflow(selected_analysts=None):
     workflow.set_entry_point("start_node")
     return workflow
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the hedge fund trading system")
-    parser.add_argument("--initial-cash", type=float, default=100000.0, help="Initial cash position. Defaults to 100000.0)")
-    parser.add_argument("--margin-requirement", type=float, default=0.0, help="Initial margin requirement. Defaults to 0.0")
-    parser.add_argument("--tickers", type=str, required=True, help="Comma-separated list of stock ticker symbols")
-    parser.add_argument(
-        "--start-date",
-        type=str,
-        help="Start date (YYYY-MM-DD). Defaults to 3 months before end date",
-    )
-    parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
-    parser.add_argument("--show-reasoning", action="store_true", help="Show reasoning from each agent")
-    parser.add_argument("--show-agent-graph", action="store_true", help="Show the agent graph")
-    parser.add_argument("--ollama", action="store_true", help="Use Ollama for local LLM inference")
-
-    args = parser.parse_args()
-
+@click.group()
+@click.option("--initial-cash", type=float, default=100000.0, help="Initial cash position. Defaults to 100000.0)")
+@click.option("--margin-requirement", type=float, default=0.0, help="Initial margin requirement. Defaults to 0.0")
+@click.option("--tickers", required=True, help="Comma-separated list of stock ticker symbols")
+@click.option("--start-date", help="Start date (YYYY-MM-DD). Defaults to 3 months before end date")
+@click.option("--end-date", help="End date (YYYY-MM-DD). Defaults to today")
+@click.option("--show-reasoning", is_flag=True, help="Show reasoning from each agent")
+@click.option("--show-agent-graph", is_flag=True, help="Show the agent graph")
+@click.option("--ollama", is_flag=True, help="Use Ollama for local LLM inference")
+def main(initial_cash, margin_requirement, tickers, start_date, end_date, show_reasoning, show_agent_graph, ollama):
     # Parse tickers from comma-separated string
-    tickers = [ticker.strip() for ticker in args.tickers.split(",")]
-
+    tickers_list = [ticker.strip() for ticker in tickers.split(",")]
     # Select analysts
     selected_analysts = None
     choices = questionary.checkbox(
@@ -168,21 +157,17 @@ if __name__ == "__main__":
             ]
         ),
     ).ask()
-
     if not choices:
         print("\n\nInterrupt received. Exiting...")
         sys.exit(0)
     else:
         selected_analysts = choices
         print(f"\nSelected analysts: {', '.join(Fore.GREEN + choice.title().replace('_', ' ') + Style.RESET_ALL for choice in choices)}\n")
-
     # Select LLM model based on whether Ollama is being used
     model_choice = None
     model_provider = None
-
-    if args.ollama:
+    if ollama:
         print(f"{Fore.CYAN}Using Ollama for local LLM inference.{Style.RESET_ALL}")
-
         # Select from Ollama-specific models
         model_choice = questionary.select(
             "Select your Ollama model:",
@@ -196,16 +181,13 @@ if __name__ == "__main__":
                 ]
             ),
         ).ask()
-
         if not model_choice:
             print("\n\nInterrupt received. Exiting...")
             sys.exit(0)
-
         # Ensure Ollama is installed, running, and the model is available
         if not ensure_ollama_and_model(model_choice):
             print(f"{Fore.RED}Cannot proceed without Ollama and the selected model.{Style.RESET_ALL}")
             sys.exit(1)
-
         model_provider = ModelProvider.OLLAMA.value
         print(f"\nSelected {Fore.CYAN}Ollama{Style.RESET_ALL} model: {Fore.GREEN + Style.BRIGHT}{model_choice}{Style.RESET_ALL}\n")
     else:
@@ -222,7 +204,6 @@ if __name__ == "__main__":
                 ]
             ),
         ).ask()
-
         if not model_choice:
             print("\n\nInterrupt received. Exiting...")
             sys.exit(0)
@@ -235,45 +216,37 @@ if __name__ == "__main__":
             else:
                 model_provider = "Unknown"
                 print(f"\nSelected model: {Fore.GREEN + Style.BRIGHT}{model_choice}{Style.RESET_ALL}\n")
-
     # Create the workflow with selected analysts
     workflow = create_workflow(selected_analysts)
     app = workflow.compile()
-
-    if args.show_agent_graph:
+    if show_agent_graph:
         file_path = ""
         if selected_analysts is not None:
             for selected_analyst in selected_analysts:
                 file_path += selected_analyst + "_"
             file_path += "graph.png"
         save_graph_as_png(app, file_path)
-
     # Validate dates if provided
-    if args.start_date:
+    if start_date:
         try:
-            datetime.strptime(args.start_date, "%Y-%m-%d")
+            datetime.strptime(start_date, "%Y-%m-%d")
         except ValueError:
             raise ValueError("Start date must be in YYYY-MM-DD format")
-
-    if args.end_date:
+    if end_date:
         try:
-            datetime.strptime(args.end_date, "%Y-%m-%d")
+            datetime.strptime(end_date, "%Y-%m-%d")
         except ValueError:
             raise ValueError("End date must be in YYYY-MM-DD format")
-
     # Set the start and end dates
-    end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
-    if not args.start_date:
+    end_date = end_date or datetime.now().strftime("%Y-%m-%d")
+    if not start_date:
         # Calculate 3 months before end_date
         end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
         start_date = (end_date_obj - relativedelta(months=3)).strftime("%Y-%m-%d")
-    else:
-        start_date = args.start_date
-
     # Initialize portfolio with cash amount and stock positions
     portfolio = {
-        "cash": args.initial_cash,  # Initial cash amount
-        "margin_requirement": args.margin_requirement,  # Initial margin requirement
+        "cash": initial_cash,  # Initial cash amount
+        "margin_requirement": margin_requirement,  # Initial margin requirement
         "margin_used": 0.0,  # total margin usage across all short positions
         "positions": {
             ticker: {
@@ -283,26 +256,27 @@ if __name__ == "__main__":
                 "short_cost_basis": 0.0,  # Average price at which shares were sold short
                 "short_margin_used": 0.0,  # Dollars of margin used for this ticker's short
             }
-            for ticker in tickers
+            for ticker in tickers_list
         },
         "realized_gains": {
             ticker: {
                 "long": 0.0,  # Realized gains from long positions
                 "short": 0.0,  # Realized gains from short positions
             }
-            for ticker in tickers
+            for ticker in tickers_list
         },
     }
-
     # Run the hedge fund
     result = run_hedge_fund(
-        tickers=tickers,
+        tickers=tickers_list,
         start_date=start_date,
         end_date=end_date,
         portfolio=portfolio,
-        show_reasoning=args.show_reasoning,
+        show_reasoning=show_reasoning,
         selected_analysts=selected_analysts,
         model_name=model_choice,
         model_provider=model_provider,
     )
     print_trading_output(result)
+
+main()
