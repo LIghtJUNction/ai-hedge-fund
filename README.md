@@ -25,6 +25,7 @@ This system employs several agents working together:
 
 # uv tool install ahfu or uv tool install -e .
 # ahfu
+# done
 
 **Note**: the system simulates trading decisions, it does not actually trade.
 
